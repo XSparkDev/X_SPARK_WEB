@@ -52,8 +52,8 @@ export function HeroSection() {
           />
         </div>
 
-        {/* Glass backdrop behind text – fixed height and width so it never changes between phrases */}
-        <div className="bg-white/20 backdrop-blur-[2px] border border-white/30 shadow-lg rounded-xl px-6 sm:px-8 py-4 sm:py-6 mb-6 w-72 sm:w-96 md:w-[28rem] h-28 sm:h-32 md:h-36 flex items-center justify-center">
+        {/* Glass backdrop behind text – fixed height and width, sized to comfortably fit the longest phrase */}
+        <div className="bg-white/20 backdrop-blur-[2px] border border-white/30 shadow-lg rounded-xl px-6 sm:px-8 py-4 sm:py-6 mb-6 w-72 sm:w-[26rem] md:w-[30rem] h-32 sm:h-36 md:h-40 flex items-center justify-center">
           <h1
             className={`text-xl sm:text-2xl md:text-3xl font-[family-name:var(--font-heading)] font-semibold text-gray-800 leading-snug whitespace-pre-line transition-opacity duration-500 ${fade ? "opacity-100" : "opacity-0"}`}
           >

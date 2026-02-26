@@ -19,6 +19,9 @@ export const metadata: Metadata = {
   title: 'X Spark | Appsolutely Software',
   description:
     'Leading Information and Communication Technology firm dedicated to crafting exceptional solutions for software solutions and infrastructure.',
+  icons: {
+    icon: '/favicon.png',
+  },
 }
 
 export const viewport: Viewport = {
