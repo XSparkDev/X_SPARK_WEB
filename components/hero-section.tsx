@@ -52,10 +52,10 @@ export function HeroSection() {
           />
         </div>
 
-        {/* Glass backdrop behind text – fixed height and width, sized to comfortably fit the longest phrase */}
-        <div className="bg-white/20 backdrop-blur-[2px] border border-white/30 shadow-lg rounded-xl px-6 sm:px-8 py-4 sm:py-6 mb-6 w-72 sm:w-[26rem] md:w-[30rem] h-32 sm:h-36 md:h-40 flex items-center justify-center">
+        {/* Glass backdrop behind text – fixed height/width, overflow hidden so phrases never spill out */}
+        <div className="bg-white/20 backdrop-blur-[2px] border border-white/30 shadow-lg rounded-xl px-6 sm:px-8 py-4 sm:py-6 mb-6 w-72 sm:w-[26rem] md:w-[30rem] h-32 sm:h-36 md:h-40 flex items-center justify-center overflow-hidden">
           <h1
-            className={`text-xl sm:text-2xl md:text-3xl font-[family-name:var(--font-heading)] font-semibold text-gray-800 leading-snug whitespace-pre-line transition-opacity duration-500 ${fade ? "opacity-100" : "opacity-0"}`}
+            className={`text-lg sm:text-2xl md:text-3xl font-[family-name:var(--font-heading)] font-semibold text-gray-800 leading-snug whitespace-pre-line transition-opacity duration-500 ${fade ? "opacity-100" : "opacity-0"}`}
           >
             {HERO_PHRASES[currentIndex]}
           </h1>
@@ -70,8 +70,12 @@ export function HeroSection() {
         </a>
       </div>
       <div className="absolute bottom-10 left-1/2 transform -translate-x-1/2 animate-bounce">
-        <a href="#services" onClick={scrollToServices} className="text-white opacity-70 hover:opacity-100">
-          <i className="fas fa-chevron-down text-3xl" aria-hidden="true" />
+        <a
+          href="#services"
+          onClick={scrollToServices}
+          className="flex items-center justify-center w-12 h-12 rounded-full bg-white/60 border border-white/80 text-white backdrop-blur-md shadow-md transition-colors duration-300"
+        >
+          <i className="fas fa-chevron-down text-2xl text-white" aria-hidden="true" />
           <span className="sr-only">Scroll to services</span>
         </a>
       </div>
