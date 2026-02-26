@@ -39,7 +39,10 @@ export function HeroSection() {
   }
 
   return (
-    <section id="home" className="relative h-screen flex items-center justify-center">
+    <section
+      id="home"
+      className="relative h-screen pt-28 md:pt-32 lg:pt-36 pb-16 flex items-center justify-center"
+    >
       <div className="relative z-10 text-center px-4 max-w-4xl mx-auto flex flex-col items-center justify-center reveal active">
         <div className="mb-4 relative inline-block">
           <Image
@@ -68,16 +71,16 @@ export function HeroSection() {
         >
           CONTACT US
         </a>
-      </div>
-      <div className="absolute bottom-10 left-1/2 transform -translate-x-1/2 animate-bounce">
-        <a
-          href="#services"
-          onClick={scrollToServices}
-          className="flex items-center justify-center w-12 h-12 rounded-full bg-white/60 border border-white/80 text-white backdrop-blur-md shadow-md transition-colors duration-300"
-        >
-          <i className="fas fa-chevron-down text-2xl text-white" aria-hidden="true" />
-          <span className="sr-only">Scroll to services</span>
-        </a>
+        <div className="mt-8 animate-bounce">
+          <a
+            href="#services"
+            onClick={scrollToServices}
+            className="flex items-center justify-center w-12 h-12 rounded-full bg-white/60 border border-white/80 text-white backdrop-blur-md shadow-md transition-colors duration-300"
+          >
+            <i className="fas fa-chevron-down text-2xl text-white" aria-hidden="true" />
+            <span className="sr-only">Scroll to services</span>
+          </a>
+        </div>
       </div>
     </section>
   )
