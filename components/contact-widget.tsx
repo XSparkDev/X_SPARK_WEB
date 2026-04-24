@@ -8,7 +8,7 @@ export function ContactWidget() {
   if (!visible) return null
 
   return (
-    <div className="fixed bottom-6 left-6 z-40 bg-white/90 backdrop-blur-sm shadow-2xl rounded-lg p-4 w-64 transition-all duration-300">
+    <div className="fixed bottom-3 left-3 right-3 z-40 mx-auto w-auto max-w-sm bg-white/90 p-3 shadow-2xl backdrop-blur-sm transition-all duration-300 sm:bottom-6 sm:left-6 sm:right-auto sm:mx-0 sm:w-64 sm:p-4">
       <button
         onClick={() => setVisible(false)}
         className="absolute top-2 right-2 text-[#9ca3af] hover:text-[#1f2937]"

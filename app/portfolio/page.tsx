@@ -1,8 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Image from "next/image"
 import type { StaticImageData } from "next/image"
+import jsQR from "jsqr"
 import { ContactWidget } from "@/components/contact-widget"
 import KhayaProfile from "@/profileimages/khaya.jpg"
 import SaphoProfile from "@/profileimages/sapho.jpg"
@@ -52,6 +53,10 @@ import AgriHero from "@/Agri/agri-hero.jpg"
 import AgriScreen1 from "@/Agri/agri-screenshot-1.png"
 import AgriScreen2 from "@/Agri/agri-screenshot-2.png"
 import AgriScreen3 from "@/Agri/agri-screenshot-3.png"
+
+/** Replace with the live URLs encoded in each founder QR (vCard, LinkedIn, etc.). */
+const FOUNDER_QR_LINK_KHAYA = "https://www.xspark.co.za/"
+const FOUNDER_QR_LINK_SAPHO = "https://www.xspark.co.za/"
 
 const VALUE_PROPOSITIONS = [
   {
@@ -106,6 +111,7 @@ const LIVE_COLLABORATOR_PREVIEWS = [
     name: "Tik'iBox Wallet",
     url: "https://tikiboxwallet.com/",
     role: "Digital finance collaborator",
+    summary: "Fintech partner: secure wallet flows, payments, and custody journeys.",
     screenshots: [
       { src: TikiboxScreen1, device: "mobile" },
       { src: TikiboxScreen2, device: "mobile" },
@@ -118,6 +124,7 @@ const LIVE_COLLABORATOR_PREVIEWS = [
     name: "MiWill",
     url: "https://miwill-webapp.onrender.com",
     role: "Legal-tech innovation collaborator",
+    summary: "Digital wills and estate planning: trust-first UX and compliant delivery.",
     screenshots: [
       { src: MiwillScreen1, device: "mobile" },
       { src: MiwillScreen2, device: "mobile" },
@@ -134,6 +141,7 @@ const LIVE_COLLABORATOR_PREVIEWS = [
   {
     name: "iDiski Yethu",
     role: "Football fan experience platform",
+    summary: "SA football fan app: match insight, line-ups, and digital ticketing in one place.",
     screenshots: [
       { src: IdiskiPcScreen1, device: "desktop" },
       { src: IdiskiMobileScreen1, device: "mobile" },
@@ -148,6 +156,7 @@ const LIVE_COLLABORATOR_PREVIEWS = [
   {
     name: "SITHIMA",
     role: "Smart transport ticketing platform",
+    summary: "Bus ticketing online/offline: QR, PIN, and operations tooling for operators.",
     logo: SithmaLogo,
     logoMode: "wordmark" as const,
     screenshots: [
@@ -165,6 +174,7 @@ const LIVE_COLLABORATOR_PREVIEWS = [
   {
     name: "MIGHTY RAVE",
     role: "Courier and delivery management platform",
+    summary: "End-to-end courier ops: orders, dispatch, routes, and live tracking.",
     screenshots: [{ src: MightyRaveDesktopScreen, device: "desktop" }],
     previewImage: MightyRaveDesktopScreen,
     logo: MightyRaveLogo,
@@ -174,6 +184,7 @@ const LIVE_COLLABORATOR_PREVIEWS = [
   {
     name: "Makhoba Technican Dash",
     role: "Telecom operations and field execution platform",
+    summary: "Field + control-room platform for tower work: jobs, data, and technician apps.",
     screenshots: [
       { src: MakhobaAdminDashboard, device: "desktop" },
       { src: MakhobaAdminDashboard1, device: "desktop" },
@@ -190,6 +201,7 @@ const LIVE_COLLABORATOR_PREVIEWS = [
   {
     name: "True Home Inc. Platform",
     role: "Real estate transaction orchestration platform",
+    summary: "7-step home-buying flow with MLS data and internal coordination in NYC.",
     screenshots: [{ src: TrueHomesDesktopLanding, device: "desktop" }],
     previewImage: TrueHomesDesktopLanding,
     logo: TrueHomesLogo,
@@ -200,6 +212,7 @@ const LIVE_COLLABORATOR_PREVIEWS = [
     name: "XS Card",
     url: "https://xscard.co.za/",
     role: "Digital business cards and networking platform",
+    summary: "Virtual cards, QR/NFC, team roles, and analytics—live for professionals.",
     logo: XsCardLogo,
     logoMode: "xscard" as const,
     eventLinks: [
@@ -226,6 +239,7 @@ const LIVE_COLLABORATOR_PREVIEWS = [
     embedLiveSite: false,
     previewImage: AgriHero,
     role: "Agriculture exhibition and event platform",
+    summary: "Ag sector events and exhibitors: programme visibility and audience reach.",
     logo: AgriHero,
     screenshots: [
       { src: AgriHero, device: "desktop" },
@@ -311,6 +325,8 @@ type ScreenshotSlide = {
   device?: "desktop" | "mobile"
 }
 
+type CollaboratorPreview = (typeof LIVE_COLLABORATOR_PREVIEWS)[number]
+
 export default function PortfolioPage() {
   const [activeSection, setActiveSection] = useState<PortfolioSectionId>("home")
   const [pendingSection, setPendingSection] = useState<PortfolioSectionId | null>(null)
@@ -319,8 +335,65 @@ export default function PortfolioPage() {
   const [previewModal, setPreviewModal] = useState<{ title: string; slides: ScreenshotSlide[] } | null>(null)
   const [previewIndex, setPreviewIndex] = useState(0)
   const [videoPreviewModal, setVideoPreviewModal] = useState<{ title: string; src: string; type?: "file" | "embed" } | null>(null)
+  const [expandedPortfolioWriteups, setExpandedPortfolioWriteups] = useState<Record<string, boolean>>({})
+  const qrDecodeCacheRef = useRef<Record<string, string | null>>({})
 
   const isLightMode = themeMode === "light"
+
+  const openExternalUrl = (url: string) => {
+    if (!url || typeof window === "undefined") {
+      return
+    }
+    window.open(url, "_blank", "noopener,noreferrer")
+  }
+
+  const resolveImageSrc = (source: StaticImageData | string) =>
+    typeof source === "string" ? source : source.src
+
+  const decodeQrUrlFromImage = async (source: StaticImageData | string) => {
+    const sourceKey = resolveImageSrc(source)
+    if (sourceKey in qrDecodeCacheRef.current) {
+      return qrDecodeCacheRef.current[sourceKey]
+    }
+
+    const image = new window.Image()
+    image.src = sourceKey
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve()
+      image.onerror = () => reject(new Error("Unable to load QR image"))
+    })
+
+    const canvas = document.createElement("canvas")
+    canvas.width = image.naturalWidth
+    canvas.height = image.naturalHeight
+
+    const ctx = canvas.getContext("2d", { willReadFrequently: true })
+    if (!ctx) {
+      qrDecodeCacheRef.current[sourceKey] = null
+      return null
+    }
+
+    ctx.drawImage(image, 0, 0)
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    const qrResult = jsQR(imageData.data, imageData.width, imageData.height)
+    const decoded = qrResult?.data ?? null
+    qrDecodeCacheRef.current[sourceKey] = decoded
+    return decoded
+  }
+
+  const onFounderQrClick = async (
+    event: React.MouseEvent<HTMLAnchorElement>,
+    qrImage: StaticImageData,
+    fallbackUrl: string,
+  ) => {
+    event.preventDefault()
+    try {
+      const decodedUrl = await decodeQrUrlFromImage(qrImage)
+      openExternalUrl(decodedUrl ?? fallbackUrl)
+    } catch {
+      openExternalUrl(fallbackUrl)
+    }
+  }
 
   const openPreviewModal = (title: string, slides: ScreenshotSlide[]) => {
     if (!slides.length) {
@@ -357,6 +430,34 @@ export default function PortfolioPage() {
       return
     }
     setPreviewIndex((prev) => (prev - 1 + previewModal.slides.length) % previewModal.slides.length)
+  }
+
+  const onPortfolioCardClick = (preview: CollaboratorPreview) => {
+    if (typeof window === "undefined" || window.matchMedia("(min-width: 768px)").matches) {
+      return
+    }
+    if (preview.screenshots?.length) {
+      openPreviewModal(preview.name, preview.screenshots as ScreenshotSlide[])
+      return
+    }
+    if (preview.previewVideo) {
+      openVideoPreviewModal(
+        preview.name,
+        preview.previewVideo as string,
+        (preview.previewVideoType as "file" | "embed" | undefined) ?? "file",
+      )
+      return
+    }
+    if (preview.url) {
+      openExternalUrl(preview.url)
+    }
+  }
+
+  const togglePortfolioWriteup = (name: string) => {
+    setExpandedPortfolioWriteups((prev) => ({
+      ...prev,
+      [name]: !prev[name],
+    }))
   }
 
   const currentSection =
@@ -428,7 +529,7 @@ export default function PortfolioPage() {
     switch (activeSection) {
       case "home":
         return (
-          <section className="h-full flex flex-col">
+          <section className="flex h-full min-h-0 min-w-0 flex-col">
             <div
               className={`portfolio-section-heading ${
                 isLightMode ? "portfolio-section-heading-light text-[#1d2340]" : "portfolio-section-heading-dark text-white"
@@ -517,7 +618,7 @@ export default function PortfolioPage() {
 
       case "approach":
         return (
-          <section className="h-full flex flex-col">
+          <section className="flex h-full min-h-0 min-w-0 flex-col">
             <div
               className={`portfolio-section-heading ${isLightMode ? "portfolio-section-heading-light" : "portfolio-section-heading-dark"}`}
             >
@@ -527,7 +628,7 @@ export default function PortfolioPage() {
               </h2>
             </div>
 
-            <div className="portfolio-map-grid relative flex-1 grid gap-5 lg:grid-cols-4 md:grid-cols-2">
+            <div className="portfolio-map-grid portfolio-card-3d-root relative flex-1 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
               <svg
                 className="portfolio-connector-svg pointer-events-none absolute inset-0 hidden lg:block"
                 viewBox="0 0 1000 260"
@@ -567,12 +668,13 @@ export default function PortfolioPage() {
                 />
               </svg>
 
-              {APPROACH_STEPS.map((step) => (
+              {APPROACH_STEPS.map((step) => {
+                return (
                 <article
                   key={step.number}
-                  className={`${cardClass} portfolio-card-spin-shell group p-5 text-center flex flex-col justify-center min-h-[16rem] relative z-[1]`}
+                  className={`${cardClass} portfolio-card-spin-shell group relative z-[1] flex min-h-[16rem] flex-col justify-center p-5 text-center`}
                 >
-                  <div className="portfolio-card-spin-once">
+                  <div>
                     <div
                       className={`mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full text-2xl font-bold shadow-lg ${
                         isLightMode
@@ -590,14 +692,15 @@ export default function PortfolioPage() {
                     </p>
                   </div>
                 </article>
-              ))}
+                )
+              })}
             </div>
           </section>
         )
 
       case "value-proposition":
         return (
-          <section className="h-full flex flex-col">
+          <section className="flex h-full min-h-0 min-w-0 flex-col">
             <div
               className={`portfolio-section-heading ${isLightMode ? "portfolio-section-heading-light" : "portfolio-section-heading-dark"}`}
             >
@@ -607,7 +710,7 @@ export default function PortfolioPage() {
               </h2>
             </div>
 
-            <div className="portfolio-value-grid relative flex-1 grid gap-5 xl:grid-cols-3">
+            <div className="portfolio-value-grid portfolio-card-3d-root relative flex-1 grid gap-5 xl:grid-cols-3">
               <svg
                 className="portfolio-connector-svg pointer-events-none absolute inset-0 hidden xl:block"
                 viewBox="0 0 1000 250"
@@ -637,12 +740,13 @@ export default function PortfolioPage() {
                 />
               </svg>
 
-              {VALUE_PROPOSITIONS.map((item) => (
+              {VALUE_PROPOSITIONS.map((item) => {
+                return (
                 <article
                   key={item.title}
-                  className={`${cardClass} portfolio-card-spin-shell group p-5 text-center flex flex-col justify-center min-h-[16rem] relative z-[1]`}
+                  className={`${cardClass} portfolio-card-spin-shell group relative z-[1] flex min-h-[16rem] flex-col justify-center p-5 text-center`}
                 >
-                  <div className="portfolio-card-spin-once">
+                  <div>
                     <div className={`mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full text-2xl shadow-lg ${
                       isLightMode
                         ? "border border-[#c8d1ea] bg-[#eef1ff] text-[#2a2f52]"
@@ -666,14 +770,15 @@ export default function PortfolioPage() {
                     </div>
                   </div>
                 </article>
-              ))}
+                )
+              })}
             </div>
           </section>
         )
 
       case "collaborators":
         return (
-          <section className="h-full flex flex-col">
+          <section className="flex h-full min-h-0 min-w-0 flex-col">
             <div
               className={`portfolio-section-heading ${isLightMode ? "portfolio-section-heading-light" : "portfolio-section-heading-dark"}`}
             >
@@ -683,19 +788,38 @@ export default function PortfolioPage() {
               </h2>
             </div>
 
-            <div className="grid flex-1 grid-cols-2 gap-4 overflow-y-auto pr-1">
-              {LIVE_COLLABORATOR_PREVIEWS.map((preview) => (
+            <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto pr-0.5 sm:gap-4 sm:pr-1">
+              {LIVE_COLLABORATOR_PREVIEWS.map((preview) => {
+                const ext = preview as typeof preview & {
+                  previewImage?: StaticImageData
+                  embedLiveSite?: boolean
+                  summary?: string
+                }
+                const summaryLine = ext.summary ?? ""
+                const mobileScreenshot = preview.screenshots?.find((slide) => slide.device === "mobile")?.src
+                const mobileBg = mobileScreenshot ?? ext.previewImage ?? preview.screenshots?.[0]?.src
+                const useLiveIframe = Boolean(preview.url && ext.embedLiveSite !== false)
+                const eventLinks = (preview as { eventLinks?: { label: string; url: string }[] }).eventLinks
+                const isWriteupExpanded = Boolean(expandedPortfolioWriteups[preview.name])
+                const pill = isLightMode
+                  ? "border border-[#c8d1ea] bg-white/95 text-[#2d3a69] active:bg-white"
+                  : "border border-white/22 bg-black/60 text-white/92 active:bg-black/75"
+                return (
                 <article
                   key={preview.url ?? preview.name}
-                  className={`group relative overflow-hidden col-span-2 min-h-[15rem] ${cardClass}`}
+                  onClick={() => onPortfolioCardClick(preview)}
+                  className={`group relative flex min-h-[19rem] flex-col overflow-hidden rounded-[1.35rem] max-md:cursor-pointer sm:min-h-[20rem] sm:rounded-[1.75rem] md:min-h-[16rem] ${cardClass}`}
                 >
                   <div
-                    className={`absolute right-4 top-4 z-20 flex max-w-[min(100%,calc(100%-14rem))] flex-col items-stretch gap-2 sm:max-w-none sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2`}
+                    className={`absolute right-3 top-3 z-20 hidden max-w-[min(100%,calc(100%-11rem))] flex-col items-stretch gap-2 sm:right-4 sm:top-4 md:flex sm:max-w-none sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2`}
                   >
                     {preview.screenshots?.length ? (
                       <button
                         type="button"
-                        onClick={() => openPreviewModal(preview.name, preview.screenshots as ScreenshotSlide[])}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          openPreviewModal(preview.name, preview.screenshots as ScreenshotSlide[])
+                        }}
                         className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-full px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] transition ${
                           isLightMode
                             ? "border border-[#c8d1ea] bg-white/92 text-[#2d3a69] hover:bg-white"
@@ -707,13 +831,13 @@ export default function PortfolioPage() {
                         Preview
                       </button>
                     ) : null}
-                    {"eventLinks" in preview &&
-                    (preview as { eventLinks?: { label: string; url: string }[] }).eventLinks?.map((link) => (
+                    {eventLinks?.map((link) => (
                       <a
                         key={link.url}
                         href={link.url}
                         target="_blank"
                         rel="noopener noreferrer"
+                        onClick={(event) => event.stopPropagation()}
                         className={`inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] transition ${
                           isLightMode
                             ? "border border-[#c8d1ea] bg-white/80 text-[#2d3a69] hover:bg-white"
@@ -731,7 +855,7 @@ export default function PortfolioPage() {
                       if (logoMode === "wordmark") {
                         return (
                           <div
-                            className={`absolute left-4 top-4 z-20 flex h-[3.1rem] w-[11.75rem] items-center justify-center overflow-hidden rounded-2xl border shadow-[0_6px_24px_rgba(0,0,0,0.1)] md:h-[3.35rem] md:w-[12.75rem] ${
+                            className={`absolute left-3 top-3 z-20 flex h-[2.5rem] w-[9.5rem] items-center justify-center overflow-hidden rounded-xl border shadow-[0_6px_24px_rgba(0,0,0,0.1)] sm:left-4 sm:top-4 sm:h-[3.1rem] sm:w-[11.75rem] sm:rounded-2xl md:h-[3.35rem] md:w-[12.75rem] ${
                               isLightMode
                                 ? "border-[#d9dee8] bg-white ring-1 ring-black/[0.04]"
                                 : "border-[#2a2f3d] bg-white ring-1 ring-white/10"
@@ -750,7 +874,7 @@ export default function PortfolioPage() {
                       if (logoMode === "xscard") {
                         return (
                           <div
-                            className={`absolute left-4 top-4 z-20 flex h-11 w-[10.4rem] items-center justify-center overflow-hidden rounded-2xl border md:h-12 md:w-[11.1rem] ${
+                            className={`absolute left-3 top-3 z-20 flex h-10 w-[9rem] items-center justify-center overflow-hidden rounded-2xl border sm:left-4 sm:top-4 sm:h-11 sm:w-[10.4rem] md:h-12 md:w-[11.1rem] ${
                               isLightMode
                                 ? "border-[#dce1ec] bg-white shadow-[0_4px_18px_rgba(32,40,80,0.12)]"
                                 : "border-white/10 bg-gradient-to-b from-white/[0.11] to-white/[0.04] shadow-[0_4px_18px_rgba(0,0,0,0.35)]"
@@ -766,7 +890,7 @@ export default function PortfolioPage() {
                       }
                       return (
                         <div
-                          className={`absolute left-4 top-4 z-20 flex h-10 w-[9.25rem] items-center justify-center overflow-hidden rounded-xl border p-1.5 shadow-[0_10px_24px_rgba(0,0,0,0.2)] md:h-11 md:w-[10.25rem] ${
+                          className={`absolute left-3 top-3 z-20 flex h-9 w-[8.25rem] items-center justify-center overflow-hidden rounded-xl border p-1.5 shadow-[0_10px_24px_rgba(0,0,0,0.2)] sm:left-4 sm:top-4 sm:h-10 sm:w-[9.25rem] md:h-11 md:w-[10.25rem] ${
                             isLightMode ? "border-[#c8d1ea] bg-white/90" : "border-white/22 bg-black/40"
                           }`}
                         >
@@ -782,19 +906,20 @@ export default function PortfolioPage() {
                   {preview.previewVideo ? (
                     <button
                       type="button"
-                      onClick={() =>
+                      onClick={(event) => {
+                        event.stopPropagation()
                         openVideoPreviewModal(
                           preview.name,
                           preview.previewVideo as string,
                           (preview.previewVideoType as "file" | "embed" | undefined) ?? "file",
                         )
-                      }
-                      className={`absolute right-4 z-20 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] transition ${
+                      }}
+                      className={`absolute right-3 z-20 hidden items-center gap-2 rounded-full px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] transition md:inline-flex ${
                         preview.screenshots?.length
                           ? (preview as { eventLinks?: unknown[] }).eventLinks?.length
-                            ? "top-[7.5rem] sm:top-14"
+                            ? "top-24 sm:top-14"
                             : "top-14"
-                          : "top-4"
+                          : "top-12 sm:top-4"
                       } ${
                         isLightMode
                           ? "border border-[#c8d1ea] bg-white/92 text-[#2d3a69] hover:bg-white"
@@ -806,50 +931,102 @@ export default function PortfolioPage() {
                       Video
                     </button>
                   ) : null}
+                  {preview.url ? (
+                    <a
+                      href={preview.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(event) => event.stopPropagation()}
+                      className={`absolute right-3 top-3 z-20 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[9px] font-semibold uppercase tracking-[0.14em] md:hidden ${
+                        isLightMode
+                          ? "border border-[#c8d1ea] bg-white/95 text-[#24315f]"
+                          : "border border-white/24 bg-black/65 text-white"
+                      }`}
+                      aria-label={`Open ${preview.name} live site`}
+                    >
+                      Site
+                      <i className="fas fa-arrow-up-right-from-square text-[9px]" aria-hidden="true" />
+                    </a>
+                  ) : null}
 
-                  <div className="absolute inset-0 overflow-hidden rounded-[1.5rem]">
-                    {preview.url && (preview as { embedLiveSite?: boolean }).embedLiveSite !== false ? (
-                      <iframe
-                        src={preview.url}
-                        title={`${preview.name} live preview`}
-                        className="h-full w-full border-0 scale-[0.66] origin-top-left pointer-events-none"
-                        style={{ width: "151.5%", height: "151.5%" }}
-                        loading="lazy"
-                        sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
-                        referrerPolicy="strict-origin-when-cross-origin"
-                      />
-                    ) : preview.previewImage ? (
+                  <div className="relative h-52 w-full shrink-0 overflow-hidden bg-[#12141f] md:absolute md:inset-0 md:h-full">
+                    {mobileBg ? (
                       <Image
-                        src={preview.previewImage as never}
-                        alt={`${preview.name} preview`}
-                        className="h-full w-full object-cover"
+                        src={mobileBg as never}
+                        alt=""
+                        fill
+                        className="object-contain object-center p-1.5 md:hidden"
+                        sizes="100vw"
                         priority={preview.name === "Agri5 Expo"}
                       />
-                    ) : (
-                      <div
-                        className={`h-full w-full ${
-                          isLightMode ? "bg-[#e8ecf7]" : "bg-[#12141f]"
-                        }`}
-                        aria-hidden
-                      />
-                    )}
+                    ) : null}
                     <div
-                      className={`absolute inset-0 ${
-                        isLightMode
-                          ? "bg-[linear-gradient(180deg,rgba(255,255,255,0.18),rgba(255,255,255,0.52))]"
-                          : "bg-[linear-gradient(180deg,rgba(8,11,20,0.26),rgba(8,11,20,0.62))]"
-                      }`}
+                      className="absolute inset-0 bg-gradient-to-t from-[#04050a] from-40% via-[#04050a]/70 to-transparent md:hidden"
+                      aria-hidden
                     />
-                  </div>
 
-                  <div className="relative z-[1] h-full flex flex-col justify-end p-5">
-                    <p className={`text-xs uppercase tracking-[0.28em] ${isLightMode ? "text-[#56608a]" : "text-white/70"}`}>
+                    <div className="absolute inset-0 hidden overflow-hidden md:block">
+                      {useLiveIframe ? (
+                        <iframe
+                          src={preview.url}
+                          title={`${preview.name} live preview`}
+                          className="h-full w-full origin-top-left scale-[0.66] border-0 pointer-events-none"
+                          style={{ width: "151.5%", height: "151.5%" }}
+                          loading="lazy"
+                          sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+                          referrerPolicy="strict-origin-when-cross-origin"
+                        />
+                      ) : ext.previewImage ? (
+                        <Image
+                          src={ext.previewImage as never}
+                          alt={`${preview.name} preview`}
+                          className="h-full w-full object-cover"
+                          priority={preview.name === "Agri5 Expo"}
+                        />
+                      ) : (
+                        <div
+                          className={`h-full w-full ${
+                            isLightMode ? "bg-[#e8ecf7]" : "bg-[#12141f]"
+                          }`}
+                          aria-hidden
+                        />
+                      )}
+                      <div
+                        className={`absolute inset-0 ${
+                          isLightMode
+                            ? "bg-[linear-gradient(180deg,rgba(255,255,255,0.18),rgba(255,255,255,0.52))]"
+                            : "bg-[linear-gradient(180deg,rgba(8,11,20,0.26),rgba(8,11,20,0.62))]"
+                        }`}
+                      />
+                    </div>
+                  </div>
+                  {!preview.logo ? (
+                    <div
+                      className={`absolute left-3 top-3 z-20 inline-flex max-w-[13rem] items-center rounded-full px-3 py-1 text-[0.6rem] font-semibold uppercase tracking-[0.18em] sm:left-4 sm:top-4 ${
+                        isLightMode
+                          ? "border border-[#c8d1ea] bg-white/92 text-[#24315f]"
+                          : "border border-white/20 bg-black/55 text-white/88"
+                      }`}
+                    >
+                      <span className="truncate">{preview.name}</span>
+                    </div>
+                  ) : null}
+
+                  <div
+                    className={`relative z-[1] flex flex-1 flex-col justify-end p-3 sm:p-5 md:absolute md:inset-0 ${
+                      isLightMode
+                        ? "md:bg-transparent max-md:border-t max-md:border-[#d6dbe8]/30 max-md:bg-[#f5f6fb]"
+                        : "md:bg-transparent max-md:border-t max-md:border-white/10 max-md:bg-[#0a0c12]"
+                    }`}
+                  >
+                    <div className="md:mt-auto">
+                    <p className={`text-[0.65rem] uppercase tracking-[0.24em] sm:text-xs sm:tracking-[0.28em] ${isLightMode ? "text-[#56608a]" : "text-white/70"}`}>
                       Portfolio
                     </p>
-                    <h3 className={`mt-2 text-2xl font-[family-name:var(--font-heading)] font-bold ${headingClass}`}>
+                    <h3 className={`mt-1 text-lg font-[family-name:var(--font-heading)] font-bold sm:mt-1.5 sm:text-xl md:text-2xl ${headingClass}`}>
                       {preview.name}
                     </h3>
-                    <p className={`mt-1 text-sm ${mutedClass}`}>{preview.role}</p>
+                    <p className={`mt-0.5 text-sm leading-snug sm:mt-1 ${mutedClass}`}>{preview.role}</p>
                     {!preview.url ? (
                       <p className={`mt-2 inline-flex w-fit rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${
                         isLightMode ? "border border-[#cad2ec] bg-white/85 text-[#35406e]" : "border border-white/20 bg-black/35 text-white/82"
@@ -857,9 +1034,110 @@ export default function PortfolioPage() {
                         Launching soon
                       </p>
                     ) : null}
+                    <p
+                      className={`mt-2 text-[0.8125rem] leading-snug md:hidden ${mutedClass} ${
+                        isWriteupExpanded ? "" : "line-clamp-3"
+                      }`}
+                    >
+                      {isWriteupExpanded ? preview.story : summaryLine || preview.story}
+                    </p>
+                    {preview.story ? (
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          togglePortfolioWriteup(preview.name)
+                        }}
+                        className={`mt-1 inline-flex w-fit items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.14em] md:hidden ${
+                          isLightMode ? "text-[#2b3a69]" : "text-white/90"
+                        }`}
+                      >
+                        {isWriteupExpanded ? "Show less" : "Read more"}
+                        <i
+                          className={`fas ${isWriteupExpanded ? "fa-chevron-up" : "fa-chevron-down"} text-[9px]`}
+                          aria-hidden="true"
+                        />
+                      </button>
+                    ) : null}
+                    <div className="mt-3 flex flex-col gap-2 md:hidden">
+                      <div className="flex flex-wrap gap-2">
+                        {preview.screenshots?.length ? (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              openPreviewModal(preview.name, preview.screenshots as ScreenshotSlide[])
+                            }}
+                            className={`inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] ${pill}`}
+                            aria-label={`Open ${preview.name} screenshots`}
+                          >
+                            <i className="fas fa-camera-retro text-xs" aria-hidden="true" />
+                            Preview
+                          </button>
+                        ) : null}
+                        {preview.previewVideo ? (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              openVideoPreviewModal(
+                                preview.name,
+                                preview.previewVideo as string,
+                                (preview.previewVideoType as "file" | "embed" | undefined) ?? "file",
+                              )
+                            }}
+                            className={`inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] ${pill}`}
+                            aria-label={`Open ${preview.name} video preview`}
+                          >
+                            <i className="fas fa-video text-xs" aria-hidden="true" />
+                            Video
+                          </button>
+                        ) : null}
+                        {preview.url ? (
+                          <a
+                            href={preview.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(event) => event.stopPropagation()}
+                            className={`inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-semibold tracking-[0.1em] uppercase ${pill}`}
+                          >
+                            Live site
+                            <i className="fas fa-arrow-up-right-from-square text-[10px]" aria-hidden="true" />
+                          </a>
+                        ) : null}
+                        {eventLinks?.map((link) => (
+                          <a
+                            key={link.url}
+                            href={link.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(event) => event.stopPropagation()}
+                            className={`inline-flex items-center justify-center gap-1.5 rounded-full px-2.5 py-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] ${pill}`}
+                          >
+                            {link.label}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                    {preview.url ? (
+                      <a
+                        href={preview.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`mt-3 hidden w-fit items-center gap-2 rounded-full px-3 py-2 text-[10px] font-semibold tracking-[0.12em] uppercase sm:tracking-[0.16em] md:inline-flex ${
+                          isLightMode
+                            ? "border border-[#c8d1ea] bg-white/90 text-[#24315f]"
+                            : "border border-white/20 bg-white/[0.12] text-white"
+                        }`}
+                      >
+                        Open live site
+                        <i className="fas fa-arrow-up-right-from-square text-xs" aria-hidden="true" />
+                      </a>
+                    ) : null}
+                    </div>
                   </div>
 
-                  <div className="pointer-events-none absolute inset-0 z-30 invisible opacity-0 transition-opacity duration-300 group-hover:pointer-events-auto group-hover:visible group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:visible group-focus-within:opacity-100">
+                  <div className="pointer-events-none absolute inset-0 z-30 max-md:hidden invisible opacity-0 transition-opacity duration-300 group-hover:pointer-events-auto group-hover:visible group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:visible group-focus-within:opacity-100">
                     <div
                       className={`absolute inset-0 ${
                         isLightMode ? "bg-white/70" : "bg-black/68"
@@ -888,40 +1166,102 @@ export default function PortfolioPage() {
                     </div>
                   </div>
                 </article>
-              ))}
+                )
+              })}
             </div>
           </section>
         )
 
       case "contact":
         return (
-          <section className="h-full">
+          <section className="flex h-full min-h-0 min-w-0 flex-col">
             <div
-              className={`h-full overflow-hidden rounded-[1.75rem] shadow-[0_20px_70px_rgba(0,0,0,0.35)] ${
+              className={`flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.75rem] shadow-[0_20px_70px_rgba(0,0,0,0.35)] ${
                 isLightMode ? "border border-[#d6dbe8] bg-white/68" : "border border-white/10 bg-black/28"
               }`}
             >
               <div
-                className={`flex h-full items-center justify-center px-6 py-10 md:px-12 md:py-12 text-center ${
+                className={`min-h-0 flex-1 overflow-y-auto overscroll-contain ${
                   isLightMode
                     ? "bg-[linear-gradient(145deg,rgba(229,233,255,0.96),rgba(248,249,255,0.96)_55%,rgba(236,239,255,0.96))]"
                     : "bg-[linear-gradient(145deg,rgba(82,23,98,0.55),rgba(19,20,32,0.92)_55%,rgba(105,22,50,0.5))]"
                 }`}
               >
                 <div
-                  className={`mx-auto w-full max-w-7xl px-2 py-3 md:px-4 md:py-4 ${isLightMode ? "text-[#253059]" : "text-white/95"}`}
+                  className={`mx-auto w-full max-w-7xl px-4 py-6 text-center sm:px-6 sm:py-8 md:px-12 md:py-10 ${isLightMode ? "text-[#253059]" : "text-white/95"}`}
                 >
-                  <div className="mb-8 text-center md:mb-10">
+                  <div className="mb-6 md:mb-10">
                     <p className={`text-xs uppercase tracking-[0.32em] ${eyebrowClass}`}>Leadership</p>
-                    <h3 className={`mt-3 text-3xl font-[family-name:var(--font-heading)] font-bold md:text-5xl ${headingClass}`}>
+                    <h3 className={`mt-3 text-2xl font-[family-name:var(--font-heading)] font-bold sm:text-3xl md:text-5xl ${headingClass}`}>
                       Meet The Founders
                     </h3>
-                    <p className={`mx-auto mt-3 max-w-2xl text-sm md:text-base ${mutedClass}`}>
+                    <p className={`mx-auto mt-2 hidden max-w-2xl text-sm md:mt-3 md:block md:text-base ${mutedClass}`}>
                       Hover each profile to reveal QR details and connect directly.
+                    </p>
+                    <p className={`mx-auto mt-2 max-w-2xl text-sm md:hidden ${mutedClass}`}>
+                      Tap a QR code to open the link it encodes.
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-10 md:grid-cols-2 md:gap-6">
+                  <div className="flex flex-col items-stretch gap-8 pb-4 md:hidden">
+                    <div className="flex flex-col items-center text-center">
+                      <div className="relative h-40 w-40 shrink-0 overflow-hidden rounded-full shadow-xl ring-2 ring-white/15 sm:h-44 sm:w-44">
+                        <Image src={KhayaProfile} alt="Khaya Maqhwazima" className="h-full w-full object-cover object-[50%_18%]" />
+                      </div>
+                      <a
+                        href={FOUNDER_QR_LINK_KHAYA}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`mt-4 inline-block rounded-2xl border-2 p-2 shadow-lg transition active:scale-[0.98] ${
+                          isLightMode
+                            ? "border-[#c8d1ea] bg-white ring-2 ring-brand-purple/25"
+                            : "border-white/25 bg-white/5 ring-2 ring-white/20"
+                        }`}
+                        aria-label="Open Khaya connection link (QR)"
+                        onClick={(event) => onFounderQrClick(event, KhayaQr, FOUNDER_QR_LINK_KHAYA)}
+                      >
+                        <Image
+                          src={KhayaQr}
+                          alt="Khaya QR"
+                          width={120}
+                          height={120}
+                          className="h-[5.25rem] w-[5.25rem] rounded-lg object-cover sm:h-[5.75rem] sm:w-[5.75rem]"
+                        />
+                      </a>
+                      <p className={`mt-4 text-lg font-semibold sm:text-xl ${headingClass}`}>Khaya Maqhwazima</p>
+                      <p className={`text-sm ${mutedClass}`}>Co-founder and CEO</p>
+                    </div>
+
+                    <div className="flex flex-col items-center text-center">
+                      <div className="relative h-40 w-40 shrink-0 overflow-hidden rounded-full shadow-xl ring-2 ring-white/15 sm:h-44 sm:w-44">
+                        <Image src={SaphoProfile} alt="Sapho Maqhwazima" className="h-full w-full object-cover" />
+                      </div>
+                      <a
+                        href={FOUNDER_QR_LINK_SAPHO}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`mt-4 inline-block rounded-2xl border-2 p-2 shadow-lg transition active:scale-[0.98] ${
+                          isLightMode
+                            ? "border-[#c8d1ea] bg-white ring-2 ring-brand-purple/25"
+                            : "border-white/25 bg-white/5 ring-2 ring-white/20"
+                        }`}
+                        aria-label="Open Sapho connection link (QR)"
+                        onClick={(event) => onFounderQrClick(event, SaphoQr, FOUNDER_QR_LINK_SAPHO)}
+                      >
+                        <Image
+                          src={SaphoQr}
+                          alt="Sapho QR"
+                          width={120}
+                          height={120}
+                          className="h-[5.25rem] w-[5.25rem] rounded-lg object-cover sm:h-[5.75rem] sm:w-[5.75rem]"
+                        />
+                      </a>
+                      <p className={`mt-4 text-lg font-semibold sm:text-xl ${headingClass}`}>Sapho Maqhwazima</p>
+                      <p className={`text-sm ${mutedClass}`}>Co-Founder and CTO</p>
+                    </div>
+                  </div>
+
+                  <div className="hidden grid-cols-1 gap-8 pb-2 md:grid md:grid-cols-2 md:gap-6">
                     <div className="group portfolio-founder-card flex flex-col items-center text-center">
                       <div
                         className="relative h-64 w-64 overflow-visible md:h-80 md:w-80 portfolio-founder-orb"
@@ -930,42 +1270,56 @@ export default function PortfolioPage() {
                           <Image
                             src={KhayaProfile}
                             alt="Khaya Maqhwazima"
-                            className="h-full w-full object-cover transition-opacity duration-300 group-hover:opacity-0"
+                            className="h-full w-full object-cover object-[50%_18%] transition-opacity duration-300 group-hover:opacity-0"
                           />
                         </div>
-                        <div
-                          className={`pointer-events-none absolute inset-0 flex items-center justify-center rounded-full transition-opacity duration-300 ${
-                            isLightMode ? "bg-white/92 text-[#2b345d]" : "bg-[#0f1326]/92 text-white"
-                          } opacity-0 group-hover:opacity-100`}
+                        <a
+                          href={FOUNDER_QR_LINK_KHAYA}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`pointer-events-none absolute inset-0 z-[2] flex items-center justify-center rounded-full opacity-0 transition-opacity duration-300 group-hover:pointer-events-auto group-hover:opacity-100 ${
+                            isLightMode ? "bg-white/92" : "bg-[#0f1326]/92"
+                          }`}
+                          aria-label="Open Khaya connection link"
+                          onClick={(event) => onFounderQrClick(event, KhayaQr, FOUNDER_QR_LINK_KHAYA)}
                         >
                           <Image
                             src={KhayaQr}
                             alt="Khaya Maqhwazima QR code"
+                            width={200}
+                            height={200}
                             className="h-44 w-44 rounded-2xl object-cover shadow-[0_0_20px_rgba(0,0,0,0.15)] md:h-56 md:w-56"
                           />
-                        </div>
+                        </a>
                         <div
-                          className={`pointer-events-none absolute bottom-0 left-1/2 flex h-20 w-20 -translate-x-1/2 translate-y-6 items-center justify-center rounded-xl border text-sm font-bold tracking-[0.18em] transition-all duration-300 ${
+                          className={`pointer-events-none absolute bottom-0 left-1/2 z-[1] flex h-20 w-20 -translate-x-1/2 translate-y-6 items-center justify-center rounded-xl border text-sm font-bold tracking-[0.18em] transition-all duration-300 ${
                             isLightMode
                               ? "border-[#b9c3e9] bg-white/90 text-[#39406e]"
                               : "border-white/30 bg-[#12172e]/90 text-white/90"
-                          } opacity-75 group-hover:translate-y-0 group-hover:opacity-100`}
+                          } opacity-75 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100`}
                         >
-                          <div className="relative h-16 w-16 overflow-hidden rounded-md">
+                          <a
+                            href={FOUNDER_QR_LINK_KHAYA}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="pointer-events-auto relative h-16 w-16 overflow-hidden rounded-md"
+                            aria-label="Open Khaya connection link (QR)"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              void onFounderQrClick(event, KhayaQr, FOUNDER_QR_LINK_KHAYA)
+                            }}
+                          >
                             <Image
                               src={KhayaQr}
-                              alt="Khaya QR mini"
-                              className="absolute inset-0 h-full w-full object-cover transition-opacity duration-300 group-hover:opacity-0"
+                              alt=""
+                              fill
+                              className="object-cover"
+                              sizes="64px"
                             />
-                            <Image
-                              src={KhayaProfile}
-                              alt="Khaya profile mini"
-                              className="absolute inset-0 h-full w-full object-cover opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-                            />
-                          </div>
+                          </a>
                         </div>
                       </div>
-                      <p className={`mt-5 text-xl md:text-2xl font-semibold ${headingClass}`}>Khaya Maqhwazima</p>
+                      <p className={`mt-5 text-xl font-semibold md:text-2xl ${headingClass}`}>Khaya Maqhwazima</p>
                       <p className={`mt-1 text-sm md:text-base ${mutedClass}`}>Co-founder and CEO</p>
                     </div>
 
@@ -980,39 +1334,53 @@ export default function PortfolioPage() {
                             className="h-full w-full object-cover transition-opacity duration-300 group-hover:opacity-0"
                           />
                         </div>
-                        <div
-                          className={`pointer-events-none absolute inset-0 flex items-center justify-center rounded-full transition-opacity duration-300 ${
-                            isLightMode ? "bg-white/92 text-[#2b345d]" : "bg-[#0f1326]/92 text-white"
-                          } opacity-0 group-hover:opacity-100`}
+                        <a
+                          href={FOUNDER_QR_LINK_SAPHO}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`pointer-events-none absolute inset-0 z-[2] flex items-center justify-center rounded-full opacity-0 transition-opacity duration-300 group-hover:pointer-events-auto group-hover:opacity-100 ${
+                            isLightMode ? "bg-white/92" : "bg-[#0f1326]/92"
+                          }`}
+                          aria-label="Open Sapho connection link"
+                          onClick={(event) => onFounderQrClick(event, SaphoQr, FOUNDER_QR_LINK_SAPHO)}
                         >
                           <Image
                             src={SaphoQr}
                             alt="Sapho Maqhwazima QR code"
+                            width={200}
+                            height={200}
                             className="h-44 w-44 rounded-2xl object-cover shadow-[0_0_20px_rgba(0,0,0,0.15)] md:h-56 md:w-56"
                           />
-                        </div>
+                        </a>
                         <div
-                          className={`pointer-events-none absolute bottom-0 left-1/2 flex h-20 w-20 -translate-x-1/2 translate-y-6 items-center justify-center rounded-xl border text-sm font-bold tracking-[0.18em] transition-all duration-300 ${
+                          className={`pointer-events-none absolute bottom-0 left-1/2 z-[1] flex h-20 w-20 -translate-x-1/2 translate-y-6 items-center justify-center rounded-xl border text-sm font-bold tracking-[0.18em] transition-all duration-300 ${
                             isLightMode
                               ? "border-[#b9c3e9] bg-white/90 text-[#39406e]"
                               : "border-white/30 bg-[#12172e]/90 text-white/90"
-                          } opacity-75 group-hover:translate-y-0 group-hover:opacity-100`}
+                          } opacity-75 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100`}
                         >
-                          <div className="relative h-16 w-16 overflow-hidden rounded-md">
+                          <a
+                            href={FOUNDER_QR_LINK_SAPHO}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="pointer-events-auto relative h-16 w-16 overflow-hidden rounded-md"
+                            aria-label="Open Sapho connection link (QR)"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              void onFounderQrClick(event, SaphoQr, FOUNDER_QR_LINK_SAPHO)
+                            }}
+                          >
                             <Image
                               src={SaphoQr}
-                              alt="Sapho QR mini"
-                              className="absolute inset-0 h-full w-full object-cover transition-opacity duration-300 group-hover:opacity-0"
+                              alt=""
+                              fill
+                              className="object-cover"
+                              sizes="64px"
                             />
-                            <Image
-                              src={SaphoProfile}
-                              alt="Sapho profile mini"
-                              className="absolute inset-0 h-full w-full object-cover opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-                            />
-                          </div>
+                          </a>
                         </div>
                       </div>
-                      <p className={`mt-5 text-xl md:text-2xl font-semibold ${headingClass}`}>Sapho Maqhwazima</p>
+                      <p className={`mt-5 text-xl font-semibold md:text-2xl ${headingClass}`}>Sapho Maqhwazima</p>
                       <p className={`mt-1 text-sm md:text-base ${mutedClass}`}>Co-Founder and CTO</p>
                     </div>
                   </div>
@@ -1079,11 +1447,11 @@ export default function PortfolioPage() {
           ))}
         </div>
 
-        <div className="relative z-[1] h-screen overflow-hidden">
-          <main className="h-full px-3 py-3 md:px-4 md:py-4">
-            <div className="h-full w-full">
-              <div className="grid h-full gap-4 lg:grid-cols-[21rem_minmax(0,1fr)]">
-              <aside className={`${shellClass} p-4 h-full`}>
+        <div className="relative z-[1] h-dvh min-h-0 overflow-hidden">
+          <main className="h-full min-h-0 px-2 py-2 sm:px-3 sm:py-3 md:px-4 md:py-4">
+            <div className="h-full min-h-0 w-full">
+              <div className="grid h-full min-h-0 min-w-0 gap-3 sm:gap-4 lg:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
+              <aside className={`${shellClass} hidden h-full min-h-0 shrink-0 overflow-hidden p-4 lg:block`}>
                 <div
                   className={`rounded-[1.5rem] p-5 h-full ${
                     isLightMode
@@ -1153,7 +1521,7 @@ export default function PortfolioPage() {
               </aside>
 
               <section
-                className={`${shellClass} h-full overflow-hidden ${
+                className={`${shellClass} flex h-full min-h-0 min-w-0 flex-col overflow-hidden ${
                   transitionPhase !== "idle"
                     ? isLightMode
                       ? "portfolio-shell-transition-light"
@@ -1162,7 +1530,7 @@ export default function PortfolioPage() {
                 }`}
               >
                 <div
-                  className={`px-5 py-4 transition-[border-color,background-color,box-shadow] duration-300 ${
+                  className={`shrink-0 px-3 py-3 transition-[border-color,background-color,box-shadow] duration-300 sm:px-5 sm:py-4 ${
                     isLightMode
                       ? "border-b border-[#d6dbe8] bg-white/52 text-[#1d2340]"
                       : "border-b border-white/10 bg-black/22 text-white"
@@ -1174,19 +1542,21 @@ export default function PortfolioPage() {
                       : ""
                   }`}
                 >
-                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <p className={`text-[0.65rem] uppercase tracking-[0.35em] ${isLightMode ? "text-[#6f7797]" : "text-white/46"}`}>
+                  <div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div className="min-w-0">
+                      <p className={`text-[0.6rem] uppercase tracking-[0.3em] sm:text-[0.65em] sm:tracking-[0.35em] ${isLightMode ? "text-[#6f7797]" : "text-white/46"}`}>
                         Portfolio Workspace
                       </p>
-                      <p className={`mt-2 text-lg font-semibold ${headingClass}`}>portfolio / {currentSection.filename}</p>
+                      <p className={`mt-1.5 break-words text-sm font-semibold sm:mt-2 sm:text-base md:text-lg ${headingClass}`}>
+                        portfolio / {currentSection.filename}
+                      </p>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                       <button
                         type="button"
                         onClick={() => setThemeMode((prev) => (prev === "dark" ? "light" : "dark"))}
-                        className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold transition ${
+                        className={`inline-flex w-fit shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold transition ${
                           isLightMode
                             ? "border-[#c8d1ea] bg-white/86 text-[#203062]"
                             : "border-white/14 bg-white/[0.08] text-white/90"
@@ -1197,13 +1567,13 @@ export default function PortfolioPage() {
                         {isLightMode ? "Dark mode" : "Light mode"}
                       </button>
 
-                      <div className="flex flex-wrap gap-2 lg:hidden">
+                      <div className="flex w-full min-w-0 max-w-full touch-pan-x gap-2 overflow-x-auto overscroll-x-contain pb-0.5 [-ms-overflow-style:none] [scrollbar-width:thin] lg:hidden [&::-webkit-scrollbar]:h-1.5">
                       {PORTFOLIO_SECTIONS.map((section) => (
                         <button
                           key={section.id}
                           type="button"
                           onClick={() => switchSection(section.id)}
-                          className={`rounded-full border px-3 py-2 text-xs font-semibold transition ${
+                          className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-2 text-[0.7rem] font-semibold transition sm:text-xs ${
                             section.id === activeSection
                               ? isLightMode
                                 ? "border-[#c8d1ea] bg-white/86 text-[#203062]"
@@ -1223,7 +1593,7 @@ export default function PortfolioPage() {
 
                 <div
                   key={activeSection}
-                  className={`relative h-[calc(100%-5.25rem)] overflow-hidden ${sectionSurfaceClass} p-4 md:p-5 lg:p-6 ${
+                  className={`relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden ${sectionSurfaceClass} p-3 sm:p-4 md:p-5 lg:p-6 ${
                     transitionPhase === "exiting"
                       ? "portfolio-section-exit pointer-events-none"
                       : transitionPhase === "entering"
@@ -1240,7 +1610,9 @@ export default function PortfolioPage() {
                           : ""
                     }`}
                   />
-                  {renderSection()}
+                  <div className="portfolio-section-scroll flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-webkit-overflow-scrolling:touch]">
+                    {renderSection()}
+                  </div>
                 </div>
               </section>
               </div>
@@ -1251,7 +1623,7 @@ export default function PortfolioPage() {
       </div>
 
       {previewModal ? (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 md:p-8">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 md:p-8">
           <button
             type="button"
             onClick={closePreviewModal}
@@ -1260,12 +1632,14 @@ export default function PortfolioPage() {
           />
 
           <div
-            className={`relative z-[1] w-full max-w-5xl overflow-hidden rounded-[1.5rem] border ${
+            className={`relative z-[1] flex max-h-[min(92dvh,900px)] w-full max-w-5xl flex-col overflow-hidden rounded-[1.25rem] border sm:rounded-[1.5rem] ${
               isLightMode ? "border-[#c9d2ec] bg-white/95 text-[#1f2950]" : "border-white/16 bg-[#0b1122]/92 text-white"
             }`}
           >
-            <div className={`flex items-center justify-between px-4 py-3 ${isLightMode ? "border-b border-[#d4dbef]" : "border-b border-white/10"}`}>
-              <p className="text-sm font-semibold tracking-[0.18em] uppercase">{previewModal.title} Screenshots</p>
+            <div className={`flex shrink-0 items-center justify-between gap-2 px-3 py-2.5 sm:px-4 sm:py-3 ${isLightMode ? "border-b border-[#d4dbef]" : "border-b border-white/10"}`}>
+              <p className="min-w-0 truncate text-xs font-semibold tracking-[0.14em] uppercase sm:text-sm sm:tracking-[0.18em]">
+                {previewModal.title} Screenshots
+              </p>
               <button
                 type="button"
                 onClick={closePreviewModal}
@@ -1278,28 +1652,39 @@ export default function PortfolioPage() {
               </button>
             </div>
 
-            <div className="relative bg-black/55">
-              <div className="flex min-h-[22rem] items-center justify-center px-4 py-5 md:min-h-[30rem]">
-                <div className="w-full max-w-4xl rounded-2xl bg-white p-4 md:p-6 shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
-                  <div className="flex h-[22rem] w-full items-center justify-center rounded-xl bg-white md:h-[32rem]">
+            <div className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-black/55">
+              <div className="flex min-h-[16rem] items-center justify-center px-2 py-4 sm:px-4 sm:py-5 md:min-h-[30rem]">
+                <div className="w-full max-w-4xl rounded-xl bg-white p-2 shadow-[0_20px_60px_rgba(0,0,0,0.35)] sm:rounded-2xl sm:p-4 md:p-6">
+                  <div className="flex min-h-[14rem] w-full items-center justify-center rounded-lg bg-white sm:min-h-[22rem] md:h-[32rem] md:min-h-0">
                     {previewModal.slides[previewIndex]?.device === "mobile" ? (
-                      <div className="relative h-[20.5rem] w-[10.5rem] rounded-[2rem] border-[7px] border-[#0f1425] bg-[#0f1425] p-[6px] shadow-[0_24px_55px_rgba(10,14,30,0.35)] md:h-[28rem] md:w-[14rem]">
-                        <div className="absolute left-1/2 top-[9px] h-[14px] w-[78px] -translate-x-1/2 rounded-full bg-[#0f1425]" />
-                        <div className="h-full w-full overflow-hidden rounded-[1.45rem] bg-[#f7f8fb]">
-                          <Image
-                            src={previewModal.slides[previewIndex].src}
-                            alt={`${previewModal.title} screenshot ${previewIndex + 1}`}
-                            className="h-full w-full object-contain"
-                          />
+                      <>
+                        <div className="w-full rounded-xl border border-[#d8dbe6] bg-[#eef1f7] p-2 shadow-[0_18px_40px_rgba(26,35,58,0.2)] sm:hidden">
+                          <div className="rounded-lg border border-[#d6d9e4] bg-white p-1.5">
+                            <Image
+                              src={previewModal.slides[previewIndex].src}
+                              alt={`${previewModal.title} screenshot ${previewIndex + 1}`}
+                              className="h-[14rem] w-full rounded-md object-contain bg-[#f8f9fc]"
+                            />
+                          </div>
                         </div>
-                      </div>
+                        <div className="relative hidden h-[20.5rem] w-[10.5rem] rounded-[2rem] border-[7px] border-[#0f1425] bg-[#0f1425] p-[6px] shadow-[0_24px_55px_rgba(10,14,30,0.35)] sm:block md:h-[28rem] md:w-[14rem]">
+                          <div className="absolute left-1/2 top-[9px] h-[14px] w-[78px] -translate-x-1/2 rounded-full bg-[#0f1425]" />
+                          <div className="h-full w-full overflow-hidden rounded-[1.45rem] bg-[#f7f8fb]">
+                            <Image
+                              src={previewModal.slides[previewIndex].src}
+                              alt={`${previewModal.title} screenshot ${previewIndex + 1}`}
+                              className="h-full w-full object-contain"
+                            />
+                          </div>
+                        </div>
+                      </>
                     ) : (
-                      <div className="w-full max-w-[52rem] rounded-2xl border border-[#d8dbe6] bg-[#eef1f7] p-3 shadow-[0_18px_40px_rgba(26,35,58,0.2)] md:p-4">
-                        <div className="rounded-xl border border-[#d6d9e4] bg-white p-2">
+                      <div className="w-full max-w-[52rem] rounded-xl border border-[#d8dbe6] bg-[#eef1f7] p-2 shadow-[0_18px_40px_rgba(26,35,58,0.2)] sm:rounded-2xl sm:p-3 md:p-4">
+                        <div className="rounded-lg border border-[#d6d9e4] bg-white p-1.5 sm:rounded-xl sm:p-2">
                           <Image
                             src={previewModal.slides[previewIndex].src}
                             alt={`${previewModal.title} screenshot ${previewIndex + 1}`}
-                            className="h-[16rem] w-full rounded-lg object-contain bg-[#f8f9fc] md:h-[24rem]"
+                            className="h-[12rem] w-full rounded-md object-contain bg-[#f8f9fc] sm:h-[16rem] md:h-[24rem]"
                           />
                         </div>
                         <div className="mx-auto mt-3 h-2.5 w-20 rounded-full bg-[#c4cada]" />
@@ -1312,23 +1697,23 @@ export default function PortfolioPage() {
               <button
                 type="button"
                 onClick={showPreviousPreviewSlide}
-                className="absolute left-3 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/25 bg-black/45 text-white"
+                className="absolute left-1 top-1/2 z-[2] inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/25 bg-black/55 text-white sm:left-3 sm:h-10 sm:w-10"
                 aria-label="Previous screenshot"
               >
-                <i className="fas fa-chevron-left" aria-hidden="true" />
+                <i className="fas fa-chevron-left text-sm sm:text-base" aria-hidden="true" />
               </button>
 
               <button
                 type="button"
                 onClick={showNextPreviewSlide}
-                className="absolute right-3 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/25 bg-black/45 text-white"
+                className="absolute right-1 top-1/2 z-[2] inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/25 bg-black/55 text-white sm:right-3 sm:h-10 sm:w-10"
                 aria-label="Next screenshot"
               >
-                <i className="fas fa-chevron-right" aria-hidden="true" />
+                <i className="fas fa-chevron-right text-sm sm:text-base" aria-hidden="true" />
               </button>
             </div>
 
-            <div className={`px-4 py-3 text-center text-xs ${isLightMode ? "border-t border-[#d4dbef] text-[#53608a]" : "border-t border-white/10 text-white/68"}`}>
+            <div className={`shrink-0 px-3 py-2.5 text-center text-[0.65rem] sm:px-4 sm:py-3 sm:text-xs ${isLightMode ? "border-t border-[#d4dbef] text-[#53608a]" : "border-t border-white/10 text-white/68"}`}>
               {previewIndex + 1} / {previewModal.slides.length}
             </div>
           </div>
@@ -1336,7 +1721,7 @@ export default function PortfolioPage() {
       ) : null}
 
       {videoPreviewModal ? (
-        <div className="fixed inset-0 z-[71] flex items-center justify-center p-4 md:p-8">
+        <div className="fixed inset-0 z-[71] flex items-center justify-center p-3 sm:p-4 md:p-8">
           <button
             type="button"
             onClick={closeVideoPreviewModal}
@@ -1345,12 +1730,14 @@ export default function PortfolioPage() {
           />
 
           <div
-            className={`relative z-[1] w-full max-w-5xl overflow-hidden rounded-[1.5rem] border ${
+            className={`relative z-[1] flex max-h-[min(92dvh,900px)] w-full max-w-5xl flex-col overflow-hidden rounded-[1.25rem] border sm:rounded-[1.5rem] ${
               isLightMode ? "border-[#c9d2ec] bg-white/95 text-[#1f2950]" : "border-white/16 bg-[#0b1122]/92 text-white"
             }`}
           >
-            <div className={`flex items-center justify-between px-4 py-3 ${isLightMode ? "border-b border-[#d4dbef]" : "border-b border-white/10"}`}>
-              <p className="text-sm font-semibold tracking-[0.18em] uppercase">{videoPreviewModal.title} Video Preview</p>
+            <div className={`flex shrink-0 items-center justify-between gap-2 px-3 py-2.5 sm:px-4 sm:py-3 ${isLightMode ? "border-b border-[#d4dbef]" : "border-b border-white/10"}`}>
+              <p className="min-w-0 truncate text-xs font-semibold tracking-[0.14em] uppercase sm:text-sm sm:tracking-[0.18em]">
+                {videoPreviewModal.title} Video Preview
+              </p>
               <button
                 type="button"
                 onClick={closeVideoPreviewModal}
@@ -1363,14 +1750,14 @@ export default function PortfolioPage() {
               </button>
             </div>
 
-            <div className="flex items-center justify-center bg-black/55 px-4 py-5 md:py-7">
-              <div className="w-full max-w-[54rem] rounded-2xl border border-[#d8dbe6] bg-[#eef1f7] p-3 shadow-[0_18px_40px_rgba(26,35,58,0.2)] md:p-4">
-                <div className="rounded-xl border border-[#d6d9e4] bg-white p-2">
+            <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto bg-black/55 px-2 py-4 sm:px-4 sm:py-5 md:py-7">
+              <div className="w-full max-w-[54rem] rounded-xl border border-[#d8dbe6] bg-[#eef1f7] p-2 shadow-[0_18px_40px_rgba(26,35,58,0.2)] sm:rounded-2xl sm:p-3 md:p-4">
+                <div className="rounded-lg border border-[#d6d9e4] bg-white p-1.5 sm:rounded-xl sm:p-2">
                   {videoPreviewModal.type === "embed" ? (
                     <iframe
                       src={videoPreviewModal.src}
                       title={`${videoPreviewModal.title} video`}
-                      className="h-[16rem] w-full rounded-lg border-0 bg-black md:h-[26rem]"
+                      className="aspect-video w-full rounded-md border-0 bg-black"
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                       referrerPolicy="strict-origin-when-cross-origin"
                       allowFullScreen
@@ -1380,7 +1767,7 @@ export default function PortfolioPage() {
                       src={videoPreviewModal.src}
                       controls
                       autoPlay
-                      className="h-[16rem] w-full rounded-lg object-contain bg-black md:h-[26rem]"
+                      className="min-h-[12rem] w-full rounded-md object-contain bg-black sm:min-h-[16rem] md:min-h-[26rem]"
                     />
                   )}
                 </div>
@@ -1568,24 +1955,51 @@ export default function PortfolioPage() {
           box-shadow: 0 10px 24px rgba(93, 104, 142, 0.14);
         }
 
-        @keyframes portfolioCardSpinHorizontalOnce {
-          0% {
-            transform: rotateY(0deg);
+        @media (max-width: 639px) {
+          .portfolio-section-heading {
+            padding: 0.65rem 0.75rem;
+            margin-bottom: 0.65rem;
           }
-          100% {
-            transform: rotateY(360deg);
-          }
+        }
+
+        .portfolio-section-scroll {
+          overscroll-behavior-y: contain;
+        }
+
+        .portfolio-card-3d-root {
+          perspective: 1100px;
+          perspective-origin: 50% 50%;
         }
 
         .portfolio-card-spin-shell {
           transform-origin: center center;
-          transform-style: preserve-3d;
-          backface-visibility: hidden;
-          will-change: transform;
+          will-change: transform, box-shadow;
+          transition:
+            transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1),
+            box-shadow 260ms ease;
         }
 
-        .portfolio-card-spin-shell:hover {
-          animation: portfolioCardSpinHorizontalOnce 1300ms cubic-bezier(0.22, 0.61, 0.36, 1) 1;
+        @media (hover: hover) and (pointer: fine) {
+          .portfolio-card-spin-shell:hover {
+            transform: translateY(-6px) scale(1.012);
+            box-shadow:
+              0 20px 42px rgba(13, 16, 30, 0.26),
+              0 0 0 1px rgba(255, 255, 255, 0.08);
+          }
+        }
+
+        @media (hover: none) {
+          .portfolio-card-spin-shell:hover {
+            transform: none;
+            box-shadow: inherit;
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .portfolio-card-spin-shell:hover {
+            transform: none !important;
+            box-shadow: inherit !important;
+          }
         }
 
         @keyframes portfolioFounderFloat {
