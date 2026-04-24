@@ -10,7 +10,7 @@ export function Footer() {
             POPI
           </a>
         </div>
-        <div>&copy; 2022 | Developed by X Spark</div>
+        <p className="m-0">&copy; 2022 | Developed by X Spark</p>
       </div>
     </footer>
   )
