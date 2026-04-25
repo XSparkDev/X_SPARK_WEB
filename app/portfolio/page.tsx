@@ -111,14 +111,15 @@ const LIVE_COLLABORATOR_PREVIEWS = [
     name: "Tik'iBox Wallet",
     url: "https://tikiboxwallet.com/",
     role: "Digital finance collaborator",
-    summary: "Fintech partner: secure wallet flows, payments, and custody journeys.",
+    summary:
+      "TikiBox is a self-funded X Spark app for inclusive finance, built with a leading South African bank and focused on underserved communities.",
     screenshots: [
       { src: TikiboxScreen1, device: "mobile" },
       { src: TikiboxScreen2, device: "mobile" },
       { src: TikiboxScreen3, device: "mobile" },
     ],
     story:
-      "Tik'iBox Wallet collaborates with us on secure wallet flows, product reliability, and scalable fintech experience design. Together, we align venture-grade engineering with practical customer-facing payment and custody journeys.",
+      "TikiBox is a self-funded digital application by X Spark, developed in partnership with one of South Africa's leading banks. The platform is designed to support financial inclusion by targeting underserved and underbanked communities. Built for accessibility and ease of use, TikiBox enables secure digital transactions and simplified financial services, helping bridge the gap between traditional banking and emerging markets. The solution is currently moving into commercialisation, with a strong focus on scaling impact within the inclusive finance ecosystem.",
   },
   {
     name: "MiWill",
@@ -212,7 +213,8 @@ const LIVE_COLLABORATOR_PREVIEWS = [
     name: "XS Card",
     url: "https://xscard.co.za/",
     role: "Digital business cards and networking platform",
-    summary: "Virtual cards, QR/NFC, team roles, and analytics—live for professionals.",
+    summary:
+      "XS Card (Access Cards) is X Spark's self-funded digital business card, event dashboard, and light CRM platform used in live ecosystems.",
     logo: XsCardLogo,
     logoMode: "xscard" as const,
     eventLinks: [
@@ -230,7 +232,7 @@ const LIVE_COLLABORATOR_PREVIEWS = [
       { src: XsCardMobile5, device: "mobile" },
     ],
     story:
-      "XS Card is a virtual business card and networking dashboard that helps professionals build meaningful connections, remember interactions, and follow up with context. Share via QR, NFC tap, or link; update details in real time with privacy controls and analytics. Enterprise workflows support teams with role-based views for admins, managers, and employees—centralising brand consistency and engagement across campaigns and events. Live at xscard.co.za with plans from free through premium and enterprise.",
+      "XS Card (Access Cards) is a self-funded product by X Spark, designed as a digital business card platform combined with a networking event management dashboard and light CRM functionality. The solution enables users to share contact details seamlessly, manage connections, and track engagement during and after events. Built for modern networking environments, Access Cards enhances how individuals and organizations connect, capture leads, and manage relationships in real time. The product is commercially active and in use across events and professional ecosystems.",
   },
   {
     name: "Agri5 Expo",
@@ -331,12 +333,15 @@ export default function PortfolioPage() {
   const [activeSection, setActiveSection] = useState<PortfolioSectionId>("home")
   const [pendingSection, setPendingSection] = useState<PortfolioSectionId | null>(null)
   const [transitionPhase, setTransitionPhase] = useState<TransitionPhase>("idle")
-  const [themeMode, setThemeMode] = useState<ThemeMode>("dark")
+  const [themeMode, setThemeMode] = useState<ThemeMode>("light")
   const [previewModal, setPreviewModal] = useState<{ title: string; slides: ScreenshotSlide[] } | null>(null)
   const [previewIndex, setPreviewIndex] = useState(0)
   const [videoPreviewModal, setVideoPreviewModal] = useState<{ title: string; src: string; type?: "file" | "embed" } | null>(null)
   const [expandedPortfolioWriteups, setExpandedPortfolioWriteups] = useState<Record<string, boolean>>({})
   const qrDecodeCacheRef = useRef<Record<string, string | null>>({})
+  const sectionNavScrollRef = useRef<HTMLDivElement>(null)
+  const sidebarNavScrollRef = useRef<HTMLDivElement>(null)
+  const sectionContentScrollRef = useRef<HTMLDivElement>(null)
 
   const isLightMode = themeMode === "light"
 
@@ -509,6 +514,31 @@ export default function PortfolioPage() {
 
     return () => window.clearTimeout(enterTimer)
   }, [activeSection, pendingSection, transitionPhase])
+
+  useEffect(() => {
+    if (transitionPhase !== "idle") {
+      return
+    }
+    const root = sectionNavScrollRef.current
+    const target = root?.querySelector<HTMLElement>(`[data-section-nav="${activeSection}"]`)
+    target?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" })
+  }, [activeSection, transitionPhase])
+
+  useEffect(() => {
+    if (transitionPhase !== "idle") {
+      return
+    }
+    const root = sidebarNavScrollRef.current
+    const target = root?.querySelector<HTMLElement>(`[data-sidebar-nav="${activeSection}"]`)
+    target?.scrollIntoView({ behavior: "smooth", block: "nearest" })
+  }, [activeSection, transitionPhase])
+
+  useEffect(() => {
+    if (transitionPhase !== "idle") {
+      return
+    }
+    sectionContentScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })
+  }, [activeSection, transitionPhase])
 
   const shellClass = isLightMode
     ? "rounded-[2rem] border border-[#cfd5e3]/90 bg-white/58 shadow-[0_18px_60px_rgba(50,60,90,0.16)] backdrop-blur-2xl"
@@ -788,7 +818,7 @@ export default function PortfolioPage() {
               </h2>
             </div>
 
-            <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto pr-0.5 sm:gap-4 sm:pr-1">
+            <div className="grid min-h-0 min-w-0 flex-1 grid-cols-1 gap-3 overflow-y-auto px-0.5 sm:gap-4 sm:px-1">
               {LIVE_COLLABORATOR_PREVIEWS.map((preview) => {
                 const ext = preview as typeof preview & {
                   previewImage?: StaticImageData
@@ -800,15 +830,41 @@ export default function PortfolioPage() {
                 const mobileBg = mobileScreenshot ?? ext.previewImage ?? preview.screenshots?.[0]?.src
                 const useLiveIframe = Boolean(preview.url && ext.embedLiveSite !== false)
                 const eventLinks = (preview as { eventLinks?: { label: string; url: string }[] }).eventLinks
-                const isWriteupExpanded = Boolean(expandedPortfolioWriteups[preview.name])
+                const isWriteupExpanded = true
                 const pill = isLightMode
                   ? "border border-[#c8d1ea] bg-white/95 text-[#2d3a69] active:bg-white"
                   : "border border-white/22 bg-black/60 text-white/92 active:bg-black/75"
+                const mobileCardMinHClass =
+                  preview.name === "Tik'iBox Wallet"
+                    ? "min-h-[34rem] sm:min-h-[36rem]"
+                    : preview.name === "MiWill"
+                      ? "min-h-[28rem] sm:min-h-[30rem]"
+                      : preview.name === "Agri5 Expo"
+                        ? "min-h-[30rem] sm:min-h-[32rem]"
+                        : preview.name === "Makhoba Technican Dash"
+                          ? "min-h-[42rem] sm:min-h-[44rem]"
+                          : preview.name === "MIGHTY RAVE"
+                            ? "min-h-[34rem] sm:min-h-[36rem]"
+                            : "min-h-[38rem] sm:min-h-[40rem]"
+                const portfolioCardMobileScrollWriteup =
+                  preview.name === "iDiski Yethu" ||
+                  preview.name === "SITHIMA" ||
+                  preview.name === "Makhoba Technican Dash" ||
+                  preview.name === "Tik'iBox Wallet"
+                const portfolioCardBodyPadding =
+                  preview.name === "SITHIMA"
+                    ? "px-3 pt-3 pb-2 sm:p-5"
+                    : preview.name === "MIGHTY RAVE"
+                      ? "px-3 pt-3 pb-1.5 sm:p-5"
+                      : preview.name === "Tik'iBox Wallet"
+                        ? "md:p-5 max-md:px-3 max-md:pt-3 max-md:pb-6"
+                        : "p-3 sm:p-5"
+
                 return (
                 <article
                   key={preview.url ?? preview.name}
                   onClick={() => onPortfolioCardClick(preview)}
-                  className={`group relative flex min-h-[19rem] flex-col overflow-hidden rounded-[1.35rem] max-md:cursor-pointer sm:min-h-[20rem] sm:rounded-[1.75rem] md:min-h-[16rem] ${cardClass}`}
+                  className={`group relative flex flex-col overflow-hidden rounded-[1.35rem] max-md:cursor-pointer sm:rounded-[1.75rem] md:min-h-[16rem] ${mobileCardMinHClass} ${cardClass}`}
                 >
                   <div
                     className={`absolute right-3 top-3 z-20 hidden max-w-[min(100%,calc(100%-11rem))] flex-col items-stretch gap-2 sm:right-4 sm:top-4 md:flex sm:max-w-none sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2`}
@@ -1013,13 +1069,21 @@ export default function PortfolioPage() {
                   ) : null}
 
                   <div
-                    className={`relative z-[1] flex flex-1 flex-col justify-end p-3 sm:p-5 md:absolute md:inset-0 ${
+                    className={`relative z-[1] flex flex-1 flex-col justify-start ${portfolioCardBodyPadding} md:absolute md:inset-0 md:justify-end ${
+                      portfolioCardMobileScrollWriteup ? "max-md:min-h-0" : ""
+                    } ${
                       isLightMode
                         ? "md:bg-transparent max-md:border-t max-md:border-[#d6dbe8]/30 max-md:bg-[#f5f6fb]"
                         : "md:bg-transparent max-md:border-t max-md:border-white/10 max-md:bg-[#0a0c12]"
                     }`}
                   >
-                    <div className="md:mt-auto">
+                    <div
+                      className={
+                        portfolioCardMobileScrollWriteup
+                          ? "max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col md:mt-auto"
+                          : "md:mt-auto"
+                      }
+                    >
                     <p className={`text-[0.65rem] uppercase tracking-[0.24em] sm:text-xs sm:tracking-[0.28em] ${isLightMode ? "text-[#56608a]" : "text-white/70"}`}>
                       Portfolio
                     </p>
@@ -1035,31 +1099,15 @@ export default function PortfolioPage() {
                       </p>
                     ) : null}
                     <p
-                      className={`mt-2 text-[0.8125rem] leading-snug md:hidden ${mutedClass} ${
-                        isWriteupExpanded ? "" : "line-clamp-3"
+                      className={`mt-2 text-[0.8125rem] leading-snug lg:hidden ${mutedClass}${
+                        portfolioCardMobileScrollWriteup
+                          ? " max-md:min-h-0 max-md:flex-1 max-md:overflow-y-auto max-md:pr-0.5"
+                          : ""
                       }`}
                     >
-                      {isWriteupExpanded ? preview.story : summaryLine || preview.story}
+                      {preview.story || summaryLine}
                     </p>
-                    {preview.story ? (
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          togglePortfolioWriteup(preview.name)
-                        }}
-                        className={`mt-1 inline-flex w-fit items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.14em] md:hidden ${
-                          isLightMode ? "text-[#2b3a69]" : "text-white/90"
-                        }`}
-                      >
-                        {isWriteupExpanded ? "Show less" : "Read more"}
-                        <i
-                          className={`fas ${isWriteupExpanded ? "fa-chevron-up" : "fa-chevron-down"} text-[9px]`}
-                          aria-hidden="true"
-                        />
-                      </button>
-                    ) : null}
-                    <div className="mt-3 flex flex-col gap-2 md:hidden">
+                    <div className="mt-auto flex shrink-0 flex-col gap-2 pt-4 md:hidden">
                       <div className="flex flex-wrap gap-2">
                         {preview.screenshots?.length ? (
                           <button
@@ -1181,7 +1229,7 @@ export default function PortfolioPage() {
               }`}
             >
               <div
-                className={`min-h-0 flex-1 overflow-y-auto overscroll-contain ${
+                className={`min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch] ${
                   isLightMode
                     ? "bg-[linear-gradient(145deg,rgba(229,233,255,0.96),rgba(248,249,255,0.96)_55%,rgba(236,239,255,0.96))]"
                     : "bg-[linear-gradient(145deg,rgba(82,23,98,0.55),rgba(19,20,32,0.92)_55%,rgba(105,22,50,0.5))]"
@@ -1203,7 +1251,7 @@ export default function PortfolioPage() {
                     </p>
                   </div>
 
-                  <div className="flex flex-col items-stretch gap-8 pb-4 md:hidden">
+                  <div className="flex flex-col items-stretch gap-8 pb-14 md:hidden">
                     <div className="flex flex-col items-center text-center">
                       <div className="relative h-40 w-40 shrink-0 overflow-hidden rounded-full shadow-xl ring-2 ring-white/15 sm:h-44 sm:w-44">
                         <Image src={KhayaProfile} alt="Khaya Maqhwazima" className="h-full w-full object-cover object-[50%_18%]" />
@@ -1450,16 +1498,16 @@ export default function PortfolioPage() {
         <div className="relative z-[1] h-dvh min-h-0 overflow-hidden">
           <main className="h-full min-h-0 px-2 py-2 sm:px-3 sm:py-3 md:px-4 md:py-4">
             <div className="h-full min-h-0 w-full">
-              <div className="grid h-full min-h-0 min-w-0 gap-3 sm:gap-4 lg:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
+              <div className="grid h-full min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] gap-3 sm:gap-4 lg:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
               <aside className={`${shellClass} hidden h-full min-h-0 shrink-0 overflow-hidden p-4 lg:block`}>
                 <div
-                  className={`rounded-[1.5rem] p-5 h-full ${
+                  className={`flex h-full min-h-0 flex-col rounded-[1.5rem] p-5 ${
                     isLightMode
                       ? "border border-[#d6dbe8] bg-white/52 text-[#1d2340]"
                       : "border border-white/8 bg-black/26 text-white"
                   }`}
                 >
-                  <div className={`mb-6 pb-4 ${isLightMode ? "border-b border-[#d6dbe8]" : "border-b border-white/10"}`}>
+                  <div className={`mb-6 shrink-0 pb-4 ${isLightMode ? "border-b border-[#d6dbe8]" : "border-b border-white/10"}`}>
                     <p
                       className={`text-[0.65rem] uppercase tracking-[0.35em] ${
                         isLightMode ? "text-[#6d7390]" : "text-white/48"
@@ -1472,7 +1520,7 @@ export default function PortfolioPage() {
                     </h1>
                   </div>
 
-                  <div className="space-y-2">
+                  <div ref={sidebarNavScrollRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto overflow-x-hidden pr-0.5 [-webkit-overflow-scrolling:touch]">
                     {PORTFOLIO_SECTIONS.map((section) => {
                       const isActive = section.id === activeSection
 
@@ -1480,6 +1528,7 @@ export default function PortfolioPage() {
                         <button
                           key={section.id}
                           type="button"
+                          data-sidebar-nav={section.id}
                           onClick={() => switchSection(section.id)}
                           className={`w-full rounded-2xl border px-4 py-4 text-left transition ${
                             isActive
@@ -1567,25 +1616,88 @@ export default function PortfolioPage() {
                         {isLightMode ? "Dark mode" : "Light mode"}
                       </button>
 
-                      <div className="flex w-full min-w-0 max-w-full touch-pan-x gap-2 overflow-x-auto overscroll-x-contain pb-0.5 [-ms-overflow-style:none] [scrollbar-width:thin] lg:hidden [&::-webkit-scrollbar]:h-1.5">
-                      {PORTFOLIO_SECTIONS.map((section) => (
-                        <button
-                          key={section.id}
-                          type="button"
-                          onClick={() => switchSection(section.id)}
-                          className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-2 text-[0.7rem] font-semibold transition sm:text-xs ${
-                            section.id === activeSection
-                              ? isLightMode
-                                ? "border-[#c8d1ea] bg-white/86 text-[#203062]"
-                                : "border-white/18 bg-white/[0.08] text-white"
-                              : isLightMode
-                                ? "border-[#d5dbee] bg-white/56 text-[#677196]"
-                                : "border-white/10 bg-white/[0.03] text-white/68"
+                      <div className="w-full max-w-full lg:hidden">
+                        <p
+                          className={`mb-1.5 text-center text-[0.58rem] font-medium uppercase tracking-[0.22em] ${
+                            isLightMode ? "text-[#7b83a4]" : "text-white/48"
                           }`}
                         >
-                          {section.label}
-                        </button>
-                      ))}
+                          Swipe tabs — more sections
+                        </p>
+                        <div className="relative">
+                          <div
+                            className={`pointer-events-none absolute inset-y-0 left-0 z-[1] w-8 bg-gradient-to-r ${
+                              isLightMode
+                                ? "from-white via-white/90 to-transparent"
+                                : "from-[rgb(18,20,28)] via-[rgb(18,20,28)]/90 to-transparent"
+                            }`}
+                            aria-hidden
+                          />
+                          <div
+                            className={`pointer-events-none absolute inset-y-0 right-0 z-[1] w-8 bg-gradient-to-l ${
+                              isLightMode
+                                ? "from-white via-white/90 to-transparent"
+                                : "from-[rgb(18,20,28)] via-[rgb(18,20,28)]/90 to-transparent"
+                            }`}
+                            aria-hidden
+                          />
+                          <div
+                            ref={sectionNavScrollRef}
+                            role="tablist"
+                            aria-label="Portfolio sections"
+                            className="flex w-full min-w-0 max-w-full touch-pan-x snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain pb-1 [-ms-overflow-style:none] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5"
+                          >
+                            {PORTFOLIO_SECTIONS.map((section) => {
+                              const isActive = section.id === activeSection
+                              return (
+                                <button
+                                  key={section.id}
+                                  type="button"
+                                  role="tab"
+                                  aria-selected={isActive}
+                                  data-section-nav={section.id}
+                                  onClick={() => switchSection(section.id)}
+                                  className={`shrink-0 snap-center whitespace-nowrap rounded-full border px-3 py-2 text-[0.7rem] font-semibold transition sm:text-xs ${
+                                    isActive
+                                      ? isLightMode
+                                        ? "border-[#c8d1ea] bg-white/86 text-[#203062]"
+                                        : "border-white/18 bg-white/[0.08] text-white"
+                                      : isLightMode
+                                        ? "border-[#d5dbee] bg-white/56 text-[#677196]"
+                                        : "border-white/10 bg-white/[0.03] text-white/68"
+                                  }`}
+                                >
+                                  {section.label}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                        <div
+                          className="mt-2 flex flex-wrap items-center justify-center gap-1.5"
+                          aria-label="Section indicators"
+                        >
+                          {PORTFOLIO_SECTIONS.map((section) => {
+                            const isActive = section.id === activeSection
+                            return (
+                              <button
+                                key={`${section.id}-dot`}
+                                type="button"
+                                onClick={() => switchSection(section.id)}
+                                className={`rounded-full transition-all ${
+                                  isActive
+                                    ? isLightMode
+                                      ? "h-2 w-6 bg-[#4a5a9a]"
+                                      : "h-2 w-6 bg-white/85"
+                                    : isLightMode
+                                      ? "h-1.5 w-1.5 bg-[#b8c0da]"
+                                      : "h-1.5 w-1.5 bg-white/28"
+                                }`}
+                                aria-label={`Go to ${section.label}${isActive ? " (current)" : ""}`}
+                              />
+                            )
+                          })}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1610,7 +1722,10 @@ export default function PortfolioPage() {
                           : ""
                     }`}
                   />
-                  <div className="portfolio-section-scroll flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-webkit-overflow-scrolling:touch]">
+                  <div
+                    ref={sectionContentScrollRef}
+                    className="portfolio-section-scroll flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-webkit-overflow-scrolling:touch]"
+                  >
                     {renderSection()}
                   </div>
                 </div>
@@ -1816,12 +1931,12 @@ export default function PortfolioPage() {
             filter: blur(0px);
           }
           40% {
-            transform: translate3d(0, 14px, 0) scale(0.986) rotateX(1.6deg);
+            transform: translate3d(0, 14px, 0) scale(0.986);
             opacity: 0.76;
             filter: blur(5px);
           }
           100% {
-            transform: translate3d(0, 42px, 0) scale(0.942) rotateX(3deg);
+            transform: translate3d(0, 42px, 0) scale(0.942);
             opacity: 0;
             filter: blur(18px);
           }
@@ -1829,12 +1944,12 @@ export default function PortfolioPage() {
 
         @keyframes portfolioGlassEnter {
           0% {
-            transform: translate3d(0, -52px, 0) scale(1.06) rotateX(-3deg);
+            transform: translate3d(0, -52px, 0) scale(1.06);
             opacity: 0;
             filter: blur(20px);
           }
           58% {
-            transform: translate3d(0, 8px, 0) scale(0.992) rotateX(1deg);
+            transform: translate3d(0, 8px, 0) scale(0.992);
             opacity: 0.94;
             filter: blur(4px);
           }
@@ -1892,25 +2007,25 @@ export default function PortfolioPage() {
         @keyframes portfolioLiquidSweepOut {
           0% {
             opacity: 0;
-            transform: translate3d(-32%, 0, 0) scaleX(0.78);
+            transform: translate3d(0, 6%, 0) scaleY(0.82);
           }
           30% {
             opacity: 0.18;
           }
           100% {
             opacity: 0.38;
-            transform: translate3d(28%, 0, 0) scaleX(1.08);
+            transform: translate3d(0, -4%, 0) scaleY(1.06);
           }
         }
 
         @keyframes portfolioLiquidSweepIn {
           0% {
             opacity: 0.34;
-            transform: translate3d(24%, 0, 0) scaleX(1.04);
+            transform: translate3d(0, -6%, 0) scaleY(1.05);
           }
           100% {
             opacity: 0;
-            transform: translate3d(-30%, 0, 0) scaleX(0.8);
+            transform: translate3d(0, 4%, 0) scaleY(0.88);
           }
         }
 
@@ -1964,6 +2079,7 @@ export default function PortfolioPage() {
 
         .portfolio-section-scroll {
           overscroll-behavior-y: contain;
+          touch-action: pan-y;
         }
 
         .portfolio-card-3d-root {
