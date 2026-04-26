@@ -520,8 +520,17 @@ export default function PortfolioPage() {
       return
     }
     const root = sectionNavScrollRef.current
-    const target = root?.querySelector<HTMLElement>(`[data-section-nav="${activeSection}"]`)
-    target?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" })
+    if (!root) return
+    const target = root.querySelector<HTMLElement>(`[data-section-nav="${activeSection}"]`)
+    if (!target) return
+    // Scroll ONLY the tab list horizontally to center the active pill.
+    // We avoid `scrollIntoView({ inline: "center" })` because it can also
+    // scroll ancestor scroll containers, which on some mobile browsers
+    // shifts the entire workspace shell sideways when entering a tab whose
+    // content is taller than the viewport (Our Portfolio / Get in Touch).
+    const targetCenter = target.offsetLeft + target.offsetWidth / 2
+    const desiredScrollLeft = Math.max(0, targetCenter - root.clientWidth / 2)
+    root.scrollTo({ left: desiredScrollLeft, behavior: "smooth" })
   }, [activeSection, transitionPhase])
 
   useEffect(() => {
@@ -1495,10 +1504,10 @@ export default function PortfolioPage() {
           ))}
         </div>
 
-        <div className="relative z-[1] h-dvh min-h-0 overflow-hidden">
-          <main className="h-full min-h-0 px-2 py-2 sm:px-3 sm:py-3 md:px-4 md:py-4">
-            <div className="h-full min-h-0 w-full">
-              <div className="grid h-full min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] gap-3 sm:gap-4 lg:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
+        <div className="relative z-[1] h-dvh w-full min-h-0 max-w-full overflow-hidden">
+          <main className="mx-auto h-full w-full min-h-0 max-w-full px-2 py-2 sm:px-3 sm:py-3 md:px-4 md:py-4">
+            <div className="mx-auto h-full w-full min-h-0 max-w-full">
+              <div className="flex h-full w-full min-h-0 min-w-0 max-w-full flex-col gap-3 sm:gap-4 lg:grid lg:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
               <aside className={`${shellClass} hidden h-full min-h-0 shrink-0 overflow-hidden p-4 lg:block`}>
                 <div
                   className={`flex h-full min-h-0 flex-col rounded-[1.5rem] p-5 ${
@@ -1570,7 +1579,7 @@ export default function PortfolioPage() {
               </aside>
 
               <section
-                className={`${shellClass} flex h-full min-h-0 min-w-0 flex-col overflow-hidden ${
+                className={`${shellClass} mx-auto flex h-full w-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden ${
                   transitionPhase !== "idle"
                     ? isLightMode
                       ? "portfolio-shell-transition-light"
